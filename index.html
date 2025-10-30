@@ -90,11 +90,29 @@
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button">Stats</button>
           </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">Settings</button>
+          </li>
         </ul>
 
         <div class="tab-content mt-3">
           <div class="tab-pane fade show active" id="list">
             <div id="cardsContainer" class="row g-3"></div>
+          </div>
+
+          <div class="tab-pane fade" id="settings">
+            <div class="card p-3">
+              <h5>Display Settings</h5>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="swapCategoryNote">
+                <label class="form-check-label" for="swapCategoryNote">
+                  Swap Category and Note display
+                </label>
+              </div>
+              <div class="text-muted small mt-2">
+                When enabled, Note will be shown as the main text and Category as the subtitle
+              </div>
+            </div>
           </div>
 
           <div class="tab-pane fade" id="stats">
@@ -503,11 +521,194 @@
       deleteTargetId = null; deleteModal.hide();
     });
 
+        // Pagination state
+    let currentPage = 1;
+    let itemsPerPage = 1; // 1 month per page
+    
+        // Settings state
+        const SETTINGS_KEY = 'expense_settings';
+        let settings = loadSettings();
+    
+        function loadSettings() {
+          try {
+            const raw = localStorage.getItem(SETTINGS_KEY);
+            return raw ? JSON.parse(raw) : { swapCategoryNote: false };
+          } catch(e) {
+            return { swapCategoryNote: false };
+          }
+        }
+    
+        function saveSettings() {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        }
+    
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    }
+
+    function renderPagination(dates) {
+      const monthGroups = {};
+      dates.forEach(date => {
+        const yearMonth = date.substring(0, 7); // YYYY-MM format
+        if (!monthGroups[yearMonth]) {
+          monthGroups[yearMonth] = [];
+        }
+        monthGroups[yearMonth].push(date);
+      });
+
+      const totalPages = Object.keys(monthGroups).length;
+      const paginationHtml = `
+        <nav aria-label="Page navigation" class="my-3">
+          <ul class="pagination justify-content-center">
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+              <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>
+            <li class="page-item disabled">
+              <span class="page-link">Page ${currentPage} of ${totalPages}</span>
+            </li>
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+              <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>
+          </ul>
+        </nav>
+      `;
+
+      const paginationContainer = document.createElement('div');
+      paginationContainer.innerHTML = paginationHtml;
+      cardsContainer.insertAdjacentElement('afterbegin', paginationContainer);
+
+      // Attach pagination click handlers
+      paginationContainer.querySelectorAll('.page-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const newPage = parseInt(link.getAttribute('data-page'));
+          if (!isNaN(newPage) && newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            renderList();
+          }
+        });
+      });
+
+      return monthGroups;
+    }
+
+    function renderList() {
+      cardsContainer.innerHTML = '';
+      if (expenses.length === 0) {
+        cardsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">কোনো খরচ নেই — নতুন যোগ করুন।</div></div>';
+        return;
+      }
+
+      // Group expenses by date
+      const grouped = {};
+      expenses.slice().forEach(e => {
+        grouped[e.date] = grouped[e.date] || [];
+        grouped[e.date].push(e);
+      });
+
+      // Get sorted dates
+      const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+      
+      // Create month groups and render pagination
+      const monthGroups = renderPagination(dates);
+      const monthDates = Object.values(monthGroups)[currentPage - 1] || [];
+
+      // Render only the current month's dates
+      monthDates.forEach(date => {
+        const items = grouped[date].slice().reverse(); // latest first
+        const dayTotal = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+
+        const col = document.createElement('div');
+        col.className = 'col-12 day-group mb-3';
+
+        // build items HTML
+        let itemsHtml = '<div class="row g-3">';
+        items.forEach(ex => {
+          itemsHtml += `
+            <div class="col-md-6 col-sm-12">
+              <div class="card card-exp p-2">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 class="mb-1">${settings.swapCategoryNote ? escapeHtml(ex.note || 'No Note') : escapeHtml(ex.category)} — ৳${ex.amount.toFixed(2)}</h6>
+                    <div class="small-muted">${formatDate(ex.date)} • ${settings.swapCategoryNote ? escapeHtml(ex.category) : escapeHtml(ex.note || '')}</div>
+                    <div class="small-muted">ID: <code>${ex.id}</code></div>
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${ex.id}">Del</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        itemsHtml += '</div>';
+
+        col.innerHTML = `
+          <div class="card p-2">
+            <div class="day-header mb-2">
+              <div>
+                <span class="date-title">${formatDate(date)}</span>
+                <span class="small-muted ms-2">(${items.length} items)</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold">Total: ৳${dayTotal.toFixed(2)}</span>
+                <button class="btn btn-sm btn-outline-secondary toggle-day collapsed" data-date="${date}" aria-expanded="false">Expand</button>
+              </div>
+            </div>
+            <div class="day-items" style="display: none;">
+              ${itemsHtml}
+            </div>
+          </div>
+        `;
+
+        cardsContainer.appendChild(col);
+      });
+
+      // attach toggle handlers for collapse/expand
+      document.querySelectorAll('.toggle-day').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const parentCard = btn.closest('.card');
+          const itemsDiv = parentCard.querySelector('.day-items');
+          const isCollapsed = btn.classList.toggle('collapsed');
+          if (isCollapsed) {
+            itemsDiv.style.display = 'none';
+            btn.textContent = 'Expand';
+            btn.setAttribute('aria-expanded', 'false');
+          } else {
+            itemsDiv.style.display = '';
+            btn.textContent = 'Collapse';
+            btn.setAttribute('aria-expanded', 'true');
+          }
+        });
+      });
+
+      // attach delete handlers
+      document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          deleteTargetId = btn.getAttribute('data-id');
+          delPassword.value = '';
+          deleteModal.show();
+        });
+      });
+    }
+
     // initial render
     renderList();
 
     // load existing lastStats into UI if present
-    if(lastStats && lastStats.range){ rangeInput.value = `${lastStats.range.from} — ${lastStats.range.to}`; }
+    if (lastStats && lastStats.range) { rangeInput.value = `${lastStats.range.from} — ${lastStats.range.to}`; }
+
+    // Initialize settings UI and handlers
+    const swapCategoryNoteToggle = document.getElementById('swapCategoryNote');
+    swapCategoryNoteToggle.checked = settings.swapCategoryNote;
+    
+    swapCategoryNoteToggle.addEventListener('change', () => {
+      settings.swapCategoryNote = swapCategoryNoteToggle.checked;
+      saveSettings();
+      renderList(); // Re-render the list with new display settings
+    });
 
   </script>
 </body>
