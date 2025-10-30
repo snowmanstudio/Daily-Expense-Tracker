@@ -14,6 +14,11 @@
     .del-modal .modal-content {border-radius:12px}
     .del-modal .modal-header {background:#ffecec}
     .del-modal .btn-confirm {background:#d63333;color:#fff}
+    /* Daily grouping styles */
+    .day-group .day-header {display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .day-group .day-header .date-title {font-weight:600}
+    .day-group .day-items {transition:height .18s ease, opacity .12s ease}
+    .toggle-day.collapsed {opacity:0.8}
     @media (max-width: 992px) {
       .controls-row .col-sm-4 {width: 100%;}
       #stats .card {overflow-x: auto;}
@@ -246,24 +251,82 @@
         cardsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">কোনো খরচ নেই — নতুন যোগ করুন।</div></div>';
         return;
       }
-      expenses.slice().reverse().forEach((ex)=>{
+
+      // Group expenses by date
+      const grouped = {};
+      expenses.slice().forEach(e=>{
+        grouped[e.date] = grouped[e.date] || [];
+        grouped[e.date].push(e);
+      });
+
+      // Render each date group (sorted desc)
+      const dates = Object.keys(grouped).sort((a,b)=> b.localeCompare(a));
+      dates.forEach(date => {
+        const items = grouped[date].slice().reverse(); // latest first
+        const dayTotal = items.reduce((s,i)=> s + (parseFloat(i.amount)||0), 0);
+
         const col = document.createElement('div');
-        col.className = 'col-md-6 col-sm-12';
+        col.className = 'col-12 day-group mb-3';
+
+        // build items HTML
+        let itemsHtml = '<div class="row g-3">';
+        items.forEach(ex => {
+          itemsHtml += `
+            <div class="col-md-6 col-sm-12">
+              <div class="card card-exp p-2">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 class="mb-1">${escapeHtml(ex.category)} — ৳${ex.amount.toFixed(2)}</h6>
+                    <div class="small-muted">${ex.date} • ${escapeHtml(ex.note||'')}</div>
+                    <div class="small-muted">ID: <code>${ex.id}</code></div>
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${ex.id}">Del</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        itemsHtml += '</div>';
+
         col.innerHTML = `
-          <div class="card card-exp p-2">
-            <div class="d-flex justify-content-between align-items-start">
+          <div class="card p-2">
+            <div class="day-header mb-2">
               <div>
-                <h6 class="mb-1">${escapeHtml(ex.category)} — ৳${ex.amount.toFixed(2)}</h6>
-                <div class="small-muted">${ex.date} • ${escapeHtml(ex.note||'')}</div>
-                <div class="small-muted">ID: <code>${ex.id}</code></div>
+                <span class="date-title">${date}</span>
+                <span class="small-muted ms-2">(${items.length} items)</span>
               </div>
-              <div>
-                <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${ex.id}">Del</button>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold">Total: ৳${dayTotal.toFixed(2)}</span>
+                <button class="btn btn-sm btn-outline-secondary toggle-day" data-date="${date}" aria-expanded="true">Collapse</button>
               </div>
+            </div>
+            <div class="day-items">
+              ${itemsHtml}
             </div>
           </div>
         `;
+
         cardsContainer.appendChild(col);
+      });
+
+      // attach toggle handlers for collapse/expand
+      document.querySelectorAll('.toggle-day').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const parentCard = btn.closest('.card');
+          const itemsDiv = parentCard.querySelector('.day-items');
+          const isCollapsed = btn.classList.toggle('collapsed');
+          if(isCollapsed){
+            itemsDiv.style.display = 'none';
+            btn.textContent = 'Expand';
+            btn.setAttribute('aria-expanded','false');
+          } else {
+            itemsDiv.style.display = '';
+            btn.textContent = 'Collapse';
+            btn.setAttribute('aria-expanded','true');
+          }
+        });
       });
 
       // attach delete handlers
