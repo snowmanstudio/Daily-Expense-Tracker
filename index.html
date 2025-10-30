@@ -463,16 +463,25 @@
       if(range){ const {from,to} = range; subset = subset.filter(e=> e.date >= from && e.date <= to); }
       const total = subset.reduce((s,a)=>s + (parseFloat(a.amount)||0),0);
       totalAmountEl.textContent = 'Total: ৳'+total.toFixed(2);
-      const cat = {}; subset.forEach(e=>{ cat[e.category] = (cat[e.category]||0) + (parseFloat(e.amount)||0); });
-      byCategory.innerHTML = '<h6>By category</h6>' + Object.keys(cat).map(k=>`<div>${escapeHtml(k)}: ৳${cat[k].toFixed(2)}</div>`).join('');
 
-      const labels = Object.keys(cat);
-      const data = Object.values(cat);
+      // Decide grouping key: category (default) or note (when swapped)
+      const groupByNote = !!(settings && settings.swapCategoryNote);
+      const groupMap = {};
+      subset.forEach(e=>{
+        const key = groupByNote ? (e.note || '(No note)') : (e.category || '(No category)');
+        groupMap[key] = (groupMap[key]||0) + (parseFloat(e.amount)||0);
+      });
+
+      const headerLabel = groupByNote ? 'By note' : 'By category';
+      byCategory.innerHTML = `<h6>${headerLabel}</h6>` + Object.keys(groupMap).map(k=>`<div>${escapeHtml(k)}: ৳${groupMap[k].toFixed(2)}</div>`).join('');
+
+      const labels = Object.keys(groupMap);
+      const data = Object.values(groupMap);
       if(chart) chart.destroy();
       chart = new Chart(statsChartCtx, {type:'bar', data:{labels, datasets:[{label:'Amount', data}]}, options:{responsive:true, maintainAspectRatio:false}});
 
-      // store lastStats for export/import
-      lastStats = {range: range||null, generatedAt: new Date().toISOString(), total: total, byCategory: cat};
+      // store lastStats for export/import and note how it was grouped
+      lastStats = {range: range||null, generatedAt: new Date().toISOString(), total: total, byCategory: groupMap, groupedBy: groupByNote ? 'note' : 'category'};
       saveLastStats();
     }
 
@@ -708,6 +717,10 @@
       settings.swapCategoryNote = swapCategoryNoteToggle.checked;
       saveSettings();
       renderList(); // Re-render the list with new display settings
+      // If user previously ran stats (lastStats.range exists), reapply stats with the same range
+      if(lastStats && lastStats.range){
+        applyStats(lastStats.range);
+      }
     });
 
   </script>
