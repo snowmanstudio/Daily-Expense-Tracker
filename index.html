@@ -6,20 +6,28 @@
   <title>কখনোখরচ - Offline Expense Tracker</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body{padding:20px;background:#f7f7fb}
-    .card-exp{cursor:grab}
-    .small-muted{font-size:0.85rem;color:#6c757d}
-    .export-btn{white-space:nowrap}
-    @media (max-width:576px){
-      .controls-row .col{margin-bottom:8px}
+    body {padding: 20px; background: #f7f7fb}
+    .card-exp {cursor: grab}
+    .small-muted {font-size: 0.85rem; color: #6c757d}
+    .export-btn {white-space: nowrap}
+    .controls-row {row-gap: 10px}
+    .del-modal .modal-content {border-radius:12px}
+    .del-modal .modal-header {background:#ffecec}
+    .del-modal .btn-confirm {background:#d63333;color:#fff}
+    @media (max-width: 992px) {
+      .controls-row .col-sm-4 {width: 100%;}
+      #stats .card {overflow-x: auto;}
+    }
+    @media (min-width: 993px) {
+      .controls-row .col-sm-4 {flex: 1; min-width: 30%;}
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3>প্রতিদিনের খরচ হিসাব (Offline)</h3>
-      <div>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+      <h3 class="mb-2">প্রতিদিনের খরচ হিসাব (Offline)</h3>
+      <div class="d-flex gap-2 flex-wrap">
         <button class="btn btn-outline-secondary" id="importBtn">Import</button>
         <button class="btn btn-success" id="exportAllBtn">Export ZIP</button>
       </div>
@@ -54,7 +62,7 @@
 
         <div class="card mt-3 p-3">
           <h6>Import Files</h6>
-          <p class="small-muted">CSV, XLSX (Excel), JSON (.json) ফাইল ইনপুট হিসেবে দিলে ডেটা মিশে যাবে। (PDF ইনপোর্ট সমর্থিত নয়)</p>
+          <p class="small-muted">CSV, XLSX, JSON ফাইল ইনপুট হিসেবে দিলে ডেটা মিশে যাবে। (PDF ইনপোর্ট সমর্থিত নয়)</p>
           <input type="file" id="importFile" class="form-control">
         </div>
 
@@ -76,8 +84,9 @@
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button">Stats</button>
-        </li>
+          </li>
         </ul>
+
         <div class="tab-content mt-3">
           <div class="tab-pane fade show active" id="list">
             <div id="cardsContainer" class="row g-3"></div>
@@ -85,7 +94,7 @@
 
           <div class="tab-pane fade" id="stats">
             <div class="card p-3">
-              <div class="row controls-row">
+              <div class="row controls-row gx-3 gy-2 flex-wrap">
                 <div class="col-sm-4">
                   <label class="form-label">Quick: Last 7 days</label>
                   <button class="btn btn-outline-secondary w-100" id="last7">Last 7</button>
@@ -95,13 +104,11 @@
                   <input type="month" id="monthPicker" class="form-control">
                 </div>
                 <div class="col-sm-4">
-                  <label class="form-label">Custom range</label>
-                  <div class="d-flex gap-2">
-                    <input type="date" id="fromDate" class="form-control">
-                    <input type="date" id="toDate" class="form-control">
-                  </div>
+                  <label class="form-label">Custom range (click to pick)</label>
+                  <input type="text" id="rangeInput" class="form-control" readonly placeholder="Click to choose range">
                 </div>
               </div>
+
               <div class="mt-3">
                 <button class="btn btn-primary me-2" id="applyRange">Apply</button>
                 <button class="btn btn-outline-secondary" id="resetRange">Reset</button>
@@ -116,14 +123,55 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
-    <div class="text-center small-muted mt-4">Data stored locally (localStorage). ডেটা ব্রাউজারে থাকে — সার্ভার নেই।</div>
+    <div class="text-center small-muted mt-4">Data stored locally (localStorage)। ডেটা ব্রাউজারে থাকে — সার্ভার নেই।</div>
   </div>
 
-  <!-- Libraries -->
+  <!-- Delete confirmation modal with password -->
+  <div class="modal fade del-modal" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm delete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>এই আইটেমটি স্থায়ীভাবে মুছে যাবে। চালিয়ে যেতে পাসওয়ার্ড দিন (type <strong>123</strong> then Confirm)</p>
+          <input type="password" id="delPassword" class="form-control" placeholder="Enter password to confirm">
+          <div class="form-text mt-2">আপনি নিশ্চিত হলে Confirm চাপুন, না হলে Cancel।</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-confirm" id="confirmDeleteBtn">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Range picker modal -->
+  <div class="modal fade" id="rangeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Select custom range</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label>From</label>
+          <input type="date" id="modalFrom" class="form-control mb-2">
+          <label>To</label>
+          <input type="date" id="modalTo" class="form-control">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="saveRangeBtn">Save range</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -132,10 +180,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
   <script>
-    // Simple offline expense tracker
-    const STORAGE_KEY = 'expenses_v1';
+    // Offline expense tracker with improvements per user request
+    const STORAGE_KEY = 'expenses_v2';
+    const STATS_KEY = 'last_stats_v2';
 
     // Elements
     const expenseForm = document.getElementById('expenseForm');
@@ -149,33 +197,48 @@
     // Stats
     const last7Btn = document.getElementById('last7');
     const monthPicker = document.getElementById('monthPicker');
-    const fromDate = document.getElementById('fromDate');
-    const toDate = document.getElementById('toDate');
+    const rangeInput = document.getElementById('rangeInput');
+    const modalFrom = document.getElementById('modalFrom');
+    const modalTo = document.getElementById('modalTo');
+    const saveRangeBtn = document.getElementById('saveRangeBtn');
     const applyRange = document.getElementById('applyRange');
     const resetRange = document.getElementById('resetRange');
     const totalAmountEl = document.getElementById('totalAmount');
     const byCategory = document.getElementById('byCategory');
     const statsChartCtx = document.getElementById('statsChart');
 
+    // Delete modal
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    const delPassword = document.getElementById('delPassword');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    let deleteTargetId = null;
+
+    // Range modal
+    const rangeModal = new bootstrap.Modal(document.getElementById('rangeModal'));
+
     let expenses = loadExpenses();
     let chart = null;
+    let lastStats = loadLastStats();
 
-    // Init default date
+    // default date
     dateInput.value = new Date().toISOString().slice(0,10);
 
-    function saveExpenses(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+    function genId(){
+      // unique id: timestamp + random
+      return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,9);
     }
 
+    function saveExpenses(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses)); }
     function loadExpenses(){
       try{
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw) return [];
-        return JSON.parse(raw).map(e=>({...e, amount: +e.amount}));
-      }catch(e){
-        console.error(e); return [];
-      }
+        return JSON.parse(raw).map(e=>({...e, amount:+e.amount}));
+      }catch(e){ console.error(e); return []; }
     }
+
+    function saveLastStats(){ localStorage.setItem(STATS_KEY, JSON.stringify(lastStats||null)); }
+    function loadLastStats(){ try{ const r=localStorage.getItem(STATS_KEY); return r?JSON.parse(r):null;}catch(e){return null;} }
 
     function renderList(){
       cardsContainer.innerHTML = '';
@@ -183,7 +246,7 @@
         cardsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">কোনো খরচ নেই — নতুন যোগ করুন।</div></div>';
         return;
       }
-      expenses.slice().reverse().forEach((ex, idx) =>{
+      expenses.slice().reverse().forEach((ex)=>{
         const col = document.createElement('div');
         col.className = 'col-md-6 col-sm-12';
         col.innerHTML = `
@@ -192,9 +255,10 @@
               <div>
                 <h6 class="mb-1">${escapeHtml(ex.category)} — ৳${ex.amount.toFixed(2)}</h6>
                 <div class="small-muted">${ex.date} • ${escapeHtml(ex.note||'')}</div>
+                <div class="small-muted">ID: <code>${ex.id}</code></div>
               </div>
               <div>
-                <button class="btn btn-sm btn-outline-danger" data-idx="${expenses.length-1-idx}">Del</button>
+                <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${ex.id}">Del</button>
               </div>
             </div>
           </div>
@@ -203,12 +267,11 @@
       });
 
       // attach delete handlers
-      cardsContainer.querySelectorAll('button[data-idx]').forEach(btn=>{
+      document.querySelectorAll('.btn-delete').forEach(btn=>{
         btn.addEventListener('click', ()=>{
-          const i = +btn.getAttribute('data-idx');
-          if(confirm('মুছে ফেলতে চান?')){
-            expenses.splice(i,1); saveExpenses(); renderList();
-          }
+          deleteTargetId = btn.getAttribute('data-id');
+          delPassword.value = '';
+          deleteModal.show();
         });
       });
     }
@@ -217,150 +280,147 @@
 
     expenseForm.addEventListener('submit', (e)=>{
       e.preventDefault();
-      const obj = {date: dateInput.value, category: categoryInput.value.trim(), amount: parseFloat(amountInput.value)||0, note: noteInput.value.trim()};
+      const obj = {id: genId(), date: dateInput.value, category: categoryInput.value.trim(), amount: parseFloat(amountInput.value)||0, note: noteInput.value.trim()};
       expenses.push(obj); saveExpenses(); renderList(); expenseForm.reset(); dateInput.value=new Date().toISOString().slice(0,10);
     });
 
-    // Import file
+    // Import file with duplicate protection
     importFile.addEventListener('change', async (e)=>{
-      const f = e.target.files[0];
-      if(!f) return;
-      const name = f.name.toLowerCase();
-      if(name.endsWith('.csv')){
-        const text = await f.text();
-        const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
-        handleImportedRows(parsed.data);
-      } else if(name.endsWith('.json')){
-        const text = await f.text();
-        const parsed = JSON.parse(text);
-        handleImportedRows(parsed);
-      } else if(name.endsWith('.xlsx')||name.endsWith('.xls')){
-        const arr = await f.arrayBuffer();
-        const wb = XLSX.read(arr,{type:'array'});
-        const first = wb.SheetNames[0];
-        const data = XLSX.utils.sheet_to_json(wb.Sheets[first], {raw:false});
-        handleImportedRows(data);
-      } else {
-        alert('Supported: CSV, XLSX, JSON');
-      }
+      const f = e.target.files[0]; if(!f) return; const name = f.name.toLowerCase();
+      try{
+        if(name.endsWith('.csv')){
+          const text = await f.text(); const parsed = Papa.parse(text, {header:true, skipEmptyLines:true}); handleImportedRows(parsed.data);
+        } else if(name.endsWith('.json')){
+          const text = await f.text(); const parsed = JSON.parse(text);
+          // support object with { expenses: [...], stats: {...} } or plain array
+          if(parsed.expenses && Array.isArray(parsed.expenses)){
+            handleImportedRows(parsed.expenses);
+            if(parsed.stats) { lastStats = parsed.stats; saveLastStats(); alert('Stats imported'); }
+          } else if(Array.isArray(parsed)){
+            handleImportedRows(parsed);
+          } else if(parsed.stats){ lastStats = parsed.stats; saveLastStats(); alert('Imported stats only'); }
+          else { alert('Unsupported JSON format'); }
+        } else if(name.endsWith('.xlsx')||name.endsWith('.xls')){
+          const arr = await f.arrayBuffer(); const wb = XLSX.read(arr,{type:'array'}); const first = wb.SheetNames[0]; const data = XLSX.utils.sheet_to_json(wb.Sheets[first], {raw:false}); handleImportedRows(data);
+        } else {
+          alert('Supported: CSV, XLSX, JSON');
+        }
+      }catch(err){ console.error(err); alert('Import error: '+err.message); }
       importFile.value = '';
     });
 
     function handleImportedRows(rows){
-      // Expect rows with keys: date, category, amount, note (case-insensitive)
-      const mapped = rows.map(r=>{
+      // Expect rows with keys: id?, date, category, amount, note
+      const added = [];
+      rows.forEach(r=>{
         const lower = {}; for(const k in r) lower[k.toLowerCase().trim()] = r[k];
-        return {date: (lower.date||new Date().toISOString().slice(0,10)).slice(0,10), category: lower.category||lower.cat||'Unknown', amount: parseFloat(lower.amount||lower.amt||0)||0, note: lower.note||''};
+        const id = (lower.id && String(lower.id).trim()) || genId();
+        // skip if id exists
+        if(expenses.find(x=>x.id===id)) return;
+        const obj = {id, date: (String(lower.date||new Date().toISOString().slice(0,10))).slice(0,10), category: lower.category||lower.cat||'Unknown', amount: parseFloat(lower.amount||lower.amt||0)||0, note: lower.note||''};
+        expenses.push(obj); added.push(obj);
       });
-      // merge
-      expenses = expenses.concat(mapped);
-      saveExpenses(); renderList(); alert('Imported '+mapped.length+' rows');
+      saveExpenses(); renderList(); alert('Imported '+added.length+' new rows (duplicates skipped)');
     }
 
-    // Export CSV
+    // Export helpers
+    function getTimestamp(){
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      const ss = String(d.getSeconds()).padStart(2,'0');
+      return `${y}${m}${day}_${hh}${mm}${ss}`;
+    }
+
     function exportCsv(){
       if(expenses.length===0){ alert('No data'); return; }
-      const rows = expenses.map(e=>({date:e.date, category:e.category, amount:e.amount, note:e.note}));
+      const rows = expenses.map(e=>({id:e.id,date:e.date, category:e.category, amount:e.amount, note:e.note}));
       const csv = Papa.unparse(rows);
       const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-      saveAs(blob, 'expenses.csv');
+      saveAs(blob, `expenses_${getTimestamp()}.csv`);
     }
 
-    // Export JSON
     function exportJson(){
-      const blob = new Blob([JSON.stringify(expenses, null, 2)], {type:'application/json'});
-      saveAs(blob, 'expenses.json');
+      const payload = {expenses, stats: lastStats||null};
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      saveAs(blob, `expenses_${getTimestamp()}.json`);
     }
 
-    // Export XLSX
     function exportXlsx(){
-      const ws = XLSX.utils.json_to_sheet(expenses);
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-      saveAs(new Blob([wbout],{type:'application/octet-stream'}), 'expenses.xlsx');
+      const ws = XLSX.utils.json_to_sheet(expenses.map(e=>({id:e.id,date:e.date,category:e.category,amount:e.amount,note:e.note}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses'); const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      saveAs(new Blob([wbout],{type:'application/octet-stream'}), `expenses_${getTimestamp()}.xlsx`);
     }
 
-    // Export PDF (simple table)
     async function exportPdf(){
       if(expenses.length===0){ alert('No data'); return; }
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      const rows = expenses.map(e=>[e.date, e.category, e.amount.toFixed(2), e.note||'']);
-      doc.autoTable({ head:[['Date','Category','Amount','Note']], body:rows, startY:10 });
-      doc.text('Expenses Export',14,8);
-      const blob = doc.output('blob'); saveAs(blob,'expenses.pdf');
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(); const rows = expenses.map(e=>[e.date, e.category, e.amount.toFixed(2), e.note||'', e.id]);
+      doc.autoTable({ head:[['Date','Category','Amount','Note','ID']], body:rows, startY:10 }); doc.text('Expenses Export',14,8);
+      const blob = doc.output('blob'); saveAs(blob,`expenses_${getTimestamp()}.pdf`);
     }
 
-    // Export ZIP with all files
+    // Export zip: CSV, JSON, XLSX, PDF + stats.json
     async function exportZip(){
       if(expenses.length===0){ alert('No data'); return; }
       const zip = new JSZip();
-      // CSV
-      zip.file('expenses.csv', Papa.unparse(expenses.map(e=>({date:e.date,category:e.category,amount:e.amount,note:e.note}))));
-      // JSON
-      zip.file('expenses.json', JSON.stringify(expenses, null,2));
-      // XLSX
-      const ws = XLSX.utils.json_to_sheet(expenses);
-      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-      const xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      zip.file('expenses.csv', Papa.unparse(expenses.map(e=>({id:e.id,date:e.date,category:e.category,amount:e.amount,note:e.note}))));
+      zip.file('expenses.json', JSON.stringify({expenses, stats: lastStats||null}, null,2));
+      const ws = XLSX.utils.json_to_sheet(expenses.map(e=>({id:e.id,date:e.date,category:e.category,amount:e.amount,note:e.note}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses'); const xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
       zip.file('expenses.xlsx', xlsxArr);
-      // PDF: generate blob and add
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      const rows = expenses.map(e=>[e.date,e.category,e.amount.toFixed(2),e.note||'']);
-      doc.autoTable({ head:[['Date','Category','Amount','Note']], body:rows, startY:10 });
-      doc.text('Expenses Export',14,8);
-      const pdfBlob = doc.output('arraybuffer');
-      zip.file('expenses.pdf', pdfBlob);
-
+      const { jsPDF } = window.jspdf; const doc = new jsPDF(); const rows = expenses.map(e=>[e.date,e.category,e.amount.toFixed(2),e.note||'',e.id]); doc.autoTable({ head:[['Date','Category','Amount','Note','ID']], body:rows, startY:10 }); doc.text('Expenses Export',14,8); const pdfBlob = doc.output('arraybuffer'); zip.file('expenses.pdf', pdfBlob);
+      // stats file
+      zip.file('stats.json', JSON.stringify(lastStats||{note:'no-stats'}, null,2));
       const content = await zip.generateAsync({type:'blob'});
-      saveAs(content, 'expenses_all_export.zip');
+      saveAs(content, `expenses_all_${getTimestamp()}.zip`);
     }
 
     // Stats calculation
     function applyStats(range){
       let subset = expenses.slice();
-      if(range){
-        const {from, to} = range; // inclusive
-        subset = subset.filter(e=>{
-          return e.date >= from && e.date <= to;
-        });
-      }
+      if(range){ const {from,to} = range; subset = subset.filter(e=> e.date >= from && e.date <= to); }
       const total = subset.reduce((s,a)=>s + (parseFloat(a.amount)||0),0);
       totalAmountEl.textContent = 'Total: ৳'+total.toFixed(2);
-      // by category
-      const cat = {};
-      subset.forEach(e=>{ cat[e.category] = (cat[e.category]||0) + (parseFloat(e.amount)||0); });
+      const cat = {}; subset.forEach(e=>{ cat[e.category] = (cat[e.category]||0) + (parseFloat(e.amount)||0); });
       byCategory.innerHTML = '<h6>By category</h6>' + Object.keys(cat).map(k=>`<div>${escapeHtml(k)}: ৳${cat[k].toFixed(2)}</div>`).join('');
 
-      // chart
       const labels = Object.keys(cat);
-      const data = Object.values(cat).map(v=>v.toFixed(2));
+      const data = Object.values(cat);
       if(chart) chart.destroy();
       chart = new Chart(statsChartCtx, {type:'bar', data:{labels, datasets:[{label:'Amount', data}]}, options:{responsive:true, maintainAspectRatio:false}});
+
+      // store lastStats for export/import
+      lastStats = {range: range||null, generatedAt: new Date().toISOString(), total: total, byCategory: cat};
+      saveLastStats();
     }
 
     last7Btn.addEventListener('click', ()=>{
       const to = new Date(); const from = new Date(); from.setDate(to.getDate()-6);
-      applyStats({from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10)});
+      const fromStr = from.toISOString().slice(0,10); const toStr = to.toISOString().slice(0,10);
+      rangeInput.value = `${fromStr} — ${toStr}`; applyStats({from:fromStr, to:toStr});
+    });
+
+    // Range modal interactions
+    rangeInput.addEventListener('click', ()=>{
+      // open modal and prefill
+      if(lastStats && lastStats.range){ modalFrom.value = lastStats.range.from; modalTo.value = lastStats.range.to; }
+      rangeModal.show();
+    });
+    saveRangeBtn.addEventListener('click', ()=>{
+      if(!modalFrom.value || !modalTo.value){ alert('Select both dates'); return; }
+      if(modalFrom.value > modalTo.value){ alert('From must be before To'); return; }
+      rangeInput.value = `${modalFrom.value} — ${modalTo.value}`;
+      rangeModal.hide();
     });
 
     applyRange.addEventListener('click', ()=>{
-      if(monthPicker.value){
-        const [y,m] = monthPicker.value.split('-');
-        const from = y+'-'+m+'-01';
-        const to = new Date(y, parseInt(m), 0).toISOString().slice(0,10); // last day
-        applyStats({from,to});
-        return;
-      }
-      if(fromDate.value && toDate.value){
-        applyStats({from: fromDate.value, to: toDate.value});
-      } else {
-        alert('Select month OR from and to dates');
-      }
+      if(monthPicker.value){ const [y,m] = monthPicker.value.split('-'); const from = y+'-'+m+'-01'; const to = new Date(y, parseInt(m), 0).toISOString().slice(0,10); applyStats({from,to}); return; }
+      if(rangeInput.value){ const parts = rangeInput.value.split('—').map(s=>s.trim()); if(parts.length===2) applyStats({from:parts[0], to:parts[1]}); else alert('Invalid range'); return; }
+      alert('Select month OR custom range');
     });
 
-    resetRange.addEventListener('click', ()=>{ totalAmountEl.textContent='Total: ৳0'; byCategory.innerHTML=''; if(chart) chart.destroy(); chart=null; monthPicker.value=''; fromDate.value=''; toDate.value=''; });
+    resetRange.addEventListener('click', ()=>{ totalAmountEl.textContent='Total: ৳0'; byCategory.innerHTML=''; if(chart) chart.destroy(); chart=null; monthPicker.value=''; rangeInput.value=''; lastStats=null; saveLastStats(); });
 
     // Buttons
     document.getElementById('exportCsv').addEventListener('click', exportCsv);
@@ -368,12 +428,24 @@
     document.getElementById('exportXlsx').addEventListener('click', exportXlsx);
     document.getElementById('exportPdf').addEventListener('click', exportPdf);
     document.getElementById('exportAllBtn').addEventListener('click', exportZip);
-
-    // Import button triggers file input
     document.getElementById('importBtn').addEventListener('click', ()=>importFile.click());
+
+    // Delete confirmation
+    confirmDeleteBtn.addEventListener('click', ()=>{
+      const val = delPassword.value.trim();
+      if(val !== '123'){ alert('Password incorrect'); return; }
+      if(!deleteTargetId){ alert('No target'); return; }
+      const idx = expenses.findIndex(x=>x.id===deleteTargetId);
+      if(idx>=0){ expenses.splice(idx,1); saveExpenses(); renderList(); }
+      deleteTargetId = null; deleteModal.hide();
+    });
 
     // initial render
     renderList();
+
+    // load existing lastStats into UI if present
+    if(lastStats && lastStats.range){ rangeInput.value = `${lastStats.range.from} — ${lastStats.range.to}`; }
+
   </script>
 </body>
 </html>
