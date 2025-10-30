@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>কখনোখরচ - Offline Expense Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{padding:20px;background:#f7f7fb}
+    .card-exp{cursor:grab}
+    .small-muted{font-size:0.85rem;color:#6c757d}
+    .export-btn{white-space:nowrap}
+    @media (max-width:576px){
+      .controls-row .col{margin-bottom:8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3>প্রতিদিনের খরচ হিসাব (Offline)</h3>
+      <div>
+        <button class="btn btn-outline-secondary" id="importBtn">Import</button>
+        <button class="btn btn-success" id="exportAllBtn">Export ZIP</button>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-lg-5">
+        <div class="card p-3">
+          <h5 class="mb-3">নতুন খরচ যোগ করুন</h5>
+          <form id="expenseForm">
+            <div class="mb-2">
+              <label class="form-label">তারিখ</label>
+              <input type="date" id="dateInput" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">বর্গ (Category)</label>
+              <input type="text" id="categoryInput" class="form-control" placeholder="Food, Transport" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">টাকার পরিমাণ</label>
+              <input type="number" step="0.01" id="amountInput" class="form-control" placeholder="Amount" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">নোট (Optional)</label>
+              <input type="text" id="noteInput" class="form-control" placeholder="small note">
+            </div>
+            <div class="d-grid">
+              <button class="btn btn-primary" type="submit">যোগ করুন</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card mt-3 p-3">
+          <h6>Import Files</h6>
+          <p class="small-muted">CSV, XLSX (Excel), JSON (.json) ফাইল ইনপুট হিসেবে দিলে ডেটা মিশে যাবে। (PDF ইনপোর্ট সমর্থিত নয়)</p>
+          <input type="file" id="importFile" class="form-control">
+        </div>
+
+        <div class="card mt-3 p-3">
+          <h6>Export</h6>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-primary export-btn" id="exportCsv">Export CSV</button>
+            <button class="btn btn-outline-primary export-btn" id="exportXlsx">Export XLSX</button>
+            <button class="btn btn-outline-primary export-btn" id="exportJson">Export JSON</button>
+            <button class="btn btn-outline-primary export-btn" id="exportPdf">Export PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button">List</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button">Stats</button>
+        </li>
+        </ul>
+        <div class="tab-content mt-3">
+          <div class="tab-pane fade show active" id="list">
+            <div id="cardsContainer" class="row g-3"></div>
+          </div>
+
+          <div class="tab-pane fade" id="stats">
+            <div class="card p-3">
+              <div class="row controls-row">
+                <div class="col-sm-4">
+                  <label class="form-label">Quick: Last 7 days</label>
+                  <button class="btn btn-outline-secondary w-100" id="last7">Last 7</button>
+                </div>
+                <div class="col-sm-4">
+                  <label class="form-label">Select month</label>
+                  <input type="month" id="monthPicker" class="form-control">
+                </div>
+                <div class="col-sm-4">
+                  <label class="form-label">Custom range</label>
+                  <div class="d-flex gap-2">
+                    <input type="date" id="fromDate" class="form-control">
+                    <input type="date" id="toDate" class="form-control">
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button class="btn btn-primary me-2" id="applyRange">Apply</button>
+                <button class="btn btn-outline-secondary" id="resetRange">Reset</button>
+              </div>
+
+              <div class="mt-3" id="statsResult">
+                <h5>Summary</h5>
+                <p class="lead" id="totalAmount">Total: ৳0</p>
+                <div id="byCategory"></div>
+                <canvas id="statsChart" style="max-height:260px"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="text-center small-muted mt-4">Data stored locally (localStorage). ডেটা ব্রাউজারে থাকে — সার্ভার নেই।</div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    // Simple offline expense tracker
+    const STORAGE_KEY = 'expenses_v1';
+
+    // Elements
+    const expenseForm = document.getElementById('expenseForm');
+    const dateInput = document.getElementById('dateInput');
+    const categoryInput = document.getElementById('categoryInput');
+    const amountInput = document.getElementById('amountInput');
+    const noteInput = document.getElementById('noteInput');
+    const cardsContainer = document.getElementById('cardsContainer');
+    const importFile = document.getElementById('importFile');
+
+    // Stats
+    const last7Btn = document.getElementById('last7');
+    const monthPicker = document.getElementById('monthPicker');
+    const fromDate = document.getElementById('fromDate');
+    const toDate = document.getElementById('toDate');
+    const applyRange = document.getElementById('applyRange');
+    const resetRange = document.getElementById('resetRange');
+    const totalAmountEl = document.getElementById('totalAmount');
+    const byCategory = document.getElementById('byCategory');
+    const statsChartCtx = document.getElementById('statsChart');
+
+    let expenses = loadExpenses();
+    let chart = null;
+
+    // Init default date
+    dateInput.value = new Date().toISOString().slice(0,10);
+
+    function saveExpenses(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+    }
+
+    function loadExpenses(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return [];
+        return JSON.parse(raw).map(e=>({...e, amount: +e.amount}));
+      }catch(e){
+        console.error(e); return [];
+      }
+    }
+
+    function renderList(){
+      cardsContainer.innerHTML = '';
+      if(expenses.length===0){
+        cardsContainer.innerHTML = '<div class="col-12"><div class="alert alert-info">কোনো খরচ নেই — নতুন যোগ করুন।</div></div>';
+        return;
+      }
+      expenses.slice().reverse().forEach((ex, idx) =>{
+        const col = document.createElement('div');
+        col.className = 'col-md-6 col-sm-12';
+        col.innerHTML = `
+          <div class="card card-exp p-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">${escapeHtml(ex.category)} — ৳${ex.amount.toFixed(2)}</h6>
+                <div class="small-muted">${ex.date} • ${escapeHtml(ex.note||'')}</div>
+              </div>
+              <div>
+                <button class="btn btn-sm btn-outline-danger" data-idx="${expenses.length-1-idx}">Del</button>
+              </div>
+            </div>
+          </div>
+        `;
+        cardsContainer.appendChild(col);
+      });
+
+      // attach delete handlers
+      cardsContainer.querySelectorAll('button[data-idx]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const i = +btn.getAttribute('data-idx');
+          if(confirm('মুছে ফেলতে চান?')){
+            expenses.splice(i,1); saveExpenses(); renderList();
+          }
+        });
+      });
+    }
+
+    function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
+
+    expenseForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const obj = {date: dateInput.value, category: categoryInput.value.trim(), amount: parseFloat(amountInput.value)||0, note: noteInput.value.trim()};
+      expenses.push(obj); saveExpenses(); renderList(); expenseForm.reset(); dateInput.value=new Date().toISOString().slice(0,10);
+    });
+
+    // Import file
+    importFile.addEventListener('change', async (e)=>{
+      const f = e.target.files[0];
+      if(!f) return;
+      const name = f.name.toLowerCase();
+      if(name.endsWith('.csv')){
+        const text = await f.text();
+        const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+        handleImportedRows(parsed.data);
+      } else if(name.endsWith('.json')){
+        const text = await f.text();
+        const parsed = JSON.parse(text);
+        handleImportedRows(parsed);
+      } else if(name.endsWith('.xlsx')||name.endsWith('.xls')){
+        const arr = await f.arrayBuffer();
+        const wb = XLSX.read(arr,{type:'array'});
+        const first = wb.SheetNames[0];
+        const data = XLSX.utils.sheet_to_json(wb.Sheets[first], {raw:false});
+        handleImportedRows(data);
+      } else {
+        alert('Supported: CSV, XLSX, JSON');
+      }
+      importFile.value = '';
+    });
+
+    function handleImportedRows(rows){
+      // Expect rows with keys: date, category, amount, note (case-insensitive)
+      const mapped = rows.map(r=>{
+        const lower = {}; for(const k in r) lower[k.toLowerCase().trim()] = r[k];
+        return {date: (lower.date||new Date().toISOString().slice(0,10)).slice(0,10), category: lower.category||lower.cat||'Unknown', amount: parseFloat(lower.amount||lower.amt||0)||0, note: lower.note||''};
+      });
+      // merge
+      expenses = expenses.concat(mapped);
+      saveExpenses(); renderList(); alert('Imported '+mapped.length+' rows');
+    }
+
+    // Export CSV
+    function exportCsv(){
+      if(expenses.length===0){ alert('No data'); return; }
+      const rows = expenses.map(e=>({date:e.date, category:e.category, amount:e.amount, note:e.note}));
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      saveAs(blob, 'expenses.csv');
+    }
+
+    // Export JSON
+    function exportJson(){
+      const blob = new Blob([JSON.stringify(expenses, null, 2)], {type:'application/json'});
+      saveAs(blob, 'expenses.json');
+    }
+
+    // Export XLSX
+    function exportXlsx(){
+      const ws = XLSX.utils.json_to_sheet(expenses);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      saveAs(new Blob([wbout],{type:'application/octet-stream'}), 'expenses.xlsx');
+    }
+
+    // Export PDF (simple table)
+    async function exportPdf(){
+      if(expenses.length===0){ alert('No data'); return; }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const rows = expenses.map(e=>[e.date, e.category, e.amount.toFixed(2), e.note||'']);
+      doc.autoTable({ head:[['Date','Category','Amount','Note']], body:rows, startY:10 });
+      doc.text('Expenses Export',14,8);
+      const blob = doc.output('blob'); saveAs(blob,'expenses.pdf');
+    }
+
+    // Export ZIP with all files
+    async function exportZip(){
+      if(expenses.length===0){ alert('No data'); return; }
+      const zip = new JSZip();
+      // CSV
+      zip.file('expenses.csv', Papa.unparse(expenses.map(e=>({date:e.date,category:e.category,amount:e.amount,note:e.note}))));
+      // JSON
+      zip.file('expenses.json', JSON.stringify(expenses, null,2));
+      // XLSX
+      const ws = XLSX.utils.json_to_sheet(expenses);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
+      const xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      zip.file('expenses.xlsx', xlsxArr);
+      // PDF: generate blob and add
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const rows = expenses.map(e=>[e.date,e.category,e.amount.toFixed(2),e.note||'']);
+      doc.autoTable({ head:[['Date','Category','Amount','Note']], body:rows, startY:10 });
+      doc.text('Expenses Export',14,8);
+      const pdfBlob = doc.output('arraybuffer');
+      zip.file('expenses.pdf', pdfBlob);
+
+      const content = await zip.generateAsync({type:'blob'});
+      saveAs(content, 'expenses_all_export.zip');
+    }
+
+    // Stats calculation
+    function applyStats(range){
+      let subset = expenses.slice();
+      if(range){
+        const {from, to} = range; // inclusive
+        subset = subset.filter(e=>{
+          return e.date >= from && e.date <= to;
+        });
+      }
+      const total = subset.reduce((s,a)=>s + (parseFloat(a.amount)||0),0);
+      totalAmountEl.textContent = 'Total: ৳'+total.toFixed(2);
+      // by category
+      const cat = {};
+      subset.forEach(e=>{ cat[e.category] = (cat[e.category]||0) + (parseFloat(e.amount)||0); });
+      byCategory.innerHTML = '<h6>By category</h6>' + Object.keys(cat).map(k=>`<div>${escapeHtml(k)}: ৳${cat[k].toFixed(2)}</div>`).join('');
+
+      // chart
+      const labels = Object.keys(cat);
+      const data = Object.values(cat).map(v=>v.toFixed(2));
+      if(chart) chart.destroy();
+      chart = new Chart(statsChartCtx, {type:'bar', data:{labels, datasets:[{label:'Amount', data}]}, options:{responsive:true, maintainAspectRatio:false}});
+    }
+
+    last7Btn.addEventListener('click', ()=>{
+      const to = new Date(); const from = new Date(); from.setDate(to.getDate()-6);
+      applyStats({from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10)});
+    });
+
+    applyRange.addEventListener('click', ()=>{
+      if(monthPicker.value){
+        const [y,m] = monthPicker.value.split('-');
+        const from = y+'-'+m+'-01';
+        const to = new Date(y, parseInt(m), 0).toISOString().slice(0,10); // last day
+        applyStats({from,to});
+        return;
+      }
+      if(fromDate.value && toDate.value){
+        applyStats({from: fromDate.value, to: toDate.value});
+      } else {
+        alert('Select month OR from and to dates');
+      }
+    });
+
+    resetRange.addEventListener('click', ()=>{ totalAmountEl.textContent='Total: ৳0'; byCategory.innerHTML=''; if(chart) chart.destroy(); chart=null; monthPicker.value=''; fromDate.value=''; toDate.value=''; });
+
+    // Buttons
+    document.getElementById('exportCsv').addEventListener('click', exportCsv);
+    document.getElementById('exportJson').addEventListener('click', exportJson);
+    document.getElementById('exportXlsx').addEventListener('click', exportXlsx);
+    document.getElementById('exportPdf').addEventListener('click', exportPdf);
+    document.getElementById('exportAllBtn').addEventListener('click', exportZip);
+
+    // Import button triggers file input
+    document.getElementById('importBtn').addEventListener('click', ()=>importFile.click());
+
+    // initial render
+    renderList();
+  </script>
+</body>
+</html>
