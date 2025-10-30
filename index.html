@@ -113,6 +113,15 @@
                 When enabled, Note will be shown as the main text and Category as the subtitle
               </div>
             </div>
+
+            <div class="card p-3 mt-3">
+              <h5>App Data</h5>
+              <p class="small-muted">This will clear all locally stored app data (expenses, stats, and settings). This action is permanent for this browser.</p>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-danger" id="clearAppBtn">Clear app data</button>
+                <button class="btn btn-secondary" id="exportBeforeClear">Export before clearing</button>
+              </div>
+            </div>
           </div>
 
           <div class="tab-pane fade" id="stats">
@@ -168,6 +177,43 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="button" class="btn btn-confirm" id="confirmDeleteBtn">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear app data confirmation modal -->
+  <div class="modal fade clear-modal" id="clearModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title">Clear all app data</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>This will permanently remove all locally stored data including expenses, saved stats and app settings in this browser. This cannot be undone.</p>
+          <p class="fw-semibold">Type <code>CLEAR</code> below to confirm.</p>
+          <input type="text" id="clearConfirmInput" class="form-control" placeholder="Type CLEAR to confirm">
+          <div class="form-text mt-2">If you want a backup, click Export before clearing.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmClearBtn" disabled>Clear data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success modal shown after clearing app data -->
+  <div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title">Success</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="successModalMsg">App data cleared. The app has been reset.</p>
         </div>
       </div>
     </div>
@@ -721,6 +767,68 @@
       if(lastStats && lastStats.range){
         applyStats(lastStats.range);
       }
+    });
+
+    // Clear app data flow
+    const clearAppBtn = document.getElementById('clearAppBtn');
+    const exportBeforeClearBtn = document.getElementById('exportBeforeClear');
+    const clearModalEl = document.getElementById('clearModal');
+    const clearModal = new bootstrap.Modal(clearModalEl);
+    const clearConfirmInput = document.getElementById('clearConfirmInput');
+    const confirmClearBtn = document.getElementById('confirmClearBtn');
+
+    // Success modal instance
+    const successModalEl = document.getElementById('successModal');
+    const successModal = new bootstrap.Modal(successModalEl);
+
+    // enable confirm button only when user types CLEAR
+    clearConfirmInput.addEventListener('input', ()=>{
+      confirmClearBtn.disabled = clearConfirmInput.value.trim().toUpperCase() !== 'CLEAR';
+    });
+
+    // open modal
+    clearAppBtn.addEventListener('click', ()=>{
+      clearConfirmInput.value = '';
+      confirmClearBtn.disabled = true;
+      clearModal.show();
+    });
+
+    // Export before clearing (convenience)
+    exportBeforeClearBtn.addEventListener('click', ()=>{
+      if(expenses.length===0){ alert('No data to export'); return; }
+      exportZip();
+    });
+
+    // Confirm clear: remove known keys and reset in-memory state
+    confirmClearBtn.addEventListener('click', async ()=>{
+      // Remove known keys instead of clearing entire localStorage to avoid removing unrelated entries
+      try{
+        const keysToRemove = [STORAGE_KEY, STATS_KEY, SETTINGS_KEY];
+        keysToRemove.forEach(k=> localStorage.removeItem(k));
+        // Also remove any keys that start with 'expense' or 'expenses' just in case
+        for(let i=localStorage.length-1;i>=0;i--){
+          const k = localStorage.key(i);
+          if(!k) continue;
+          if(k.toLowerCase().startsWith('expense') || k.toLowerCase().startsWith('expenses') || k.toLowerCase().includes('stats')){
+            localStorage.removeItem(k);
+          }
+        }
+
+        // Reset in-memory state
+        expenses = [];
+        lastStats = null;
+        settings = { swapCategoryNote: false };
+        saveSettings(); saveExpenses(); saveLastStats();
+        renderList();
+        clearModal.hide();
+
+        // Show success modal instead of alert and auto-close after 2.5s
+        successModal.show();
+        setTimeout(()=>{
+          try{ successModal.hide(); }catch(e){}
+        }, 2500);
+
+      }catch(err){ console.error(err); alert('Error while clearing data: '+err.message); }
     });
 
   </script>
